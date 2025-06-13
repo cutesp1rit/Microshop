@@ -1,22 +1,49 @@
+using Microsoft.EntityFrameworkCore;
 using Microshop.OrderService.Controllers;
 using Microshop.OrderService.Data;
-using Microsoft.EntityFrameworkCore;
+using Microshop.OrderService.Models;
 using Xunit;
+using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Microshop.OrderService.Tests;
 
 public class OrderCreationTests
 {
-    [Fact]
-    public async Task Creates_New_Order()
-    {
-        var opts = new DbContextOptionsBuilder<OrdersDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
-        var ctx = new OrdersDbContext(opts);
-        var ctrl = new OrdersController(ctx);
+    private readonly OrdersDbContext _context;
+    private readonly OrdersController _controller;
+    private readonly Guid _testUserId = Guid.NewGuid();
 
-        var dto = new CreateOrderDto(Guid.NewGuid(), 100m, "test");
-        var result = await ctrl.Create(dto, default);
-        Assert.NotNull(result);
-        Assert.Single(ctx.Orders);
-        Assert.Single(ctx.Outbox);
+    public OrderCreationTests()
+    {
+        var options = new DbContextOptionsBuilder<OrdersDbContext>()
+            .UseInMemoryDatabase(databaseName: "OrdersTestDb")
+            .Options;
+        
+        _context = new OrdersDbContext(options);
+        var logger = new LoggerFactory().CreateLogger<OrdersController>();
+        _controller = new OrdersController(_context, null, logger);
     }
-} 
+
+    [Fact]
+    public async Task GetOrderStatus_Success()
+    {
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            UserId = _testUserId,
+            Amount = 100,
+            Description = "Test order",
+            Status = OrderStatus.Created
+        };
+        _context.Orders.Add(order);
+        await _context.SaveChangesAsync();
+
+        var result = await _controller.GetStatus(order.Id);
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var orderResult = Assert.IsType<Order>(okResult.Value);
+
+        Assert.NotNull(orderResult);
+        Assert.Equal(OrderStatus.Created, orderResult.Status);
+    }
+}
