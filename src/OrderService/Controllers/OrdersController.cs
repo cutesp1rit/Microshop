@@ -68,28 +68,6 @@ public class OrdersController : ControllerBase
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            // Обработка платежа
-            var client = _httpClientFactory.CreateClient("PaymentsService");
-            var response = await client.PostAsJsonAsync("/api/Accounts/process-payment", new
-            {
-                OrderId = order.Id,
-                UserId = order.UserId,
-                Amount = order.Amount
-            });
-
-            if (response.IsSuccessStatusCode)
-            {
-                order.Status = OrderStatus.Paid;
-                await _db.SaveChangesAsync();
-                _logger.LogInformation("Order {OrderId} payment processed successfully", order.Id);
-            }
-            else
-            {
-                order.Status = OrderStatus.Failed;
-                await _db.SaveChangesAsync();
-                _logger.LogError("Failed to process payment for order {OrderId}", order.Id);
-            }
-
             return Ok(order);
         }
         catch (Exception ex)

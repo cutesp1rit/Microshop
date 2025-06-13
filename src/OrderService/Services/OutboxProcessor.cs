@@ -71,11 +71,27 @@ public class OutboxProcessor : BackgroundService
 
                     if (response.IsSuccessStatusCode)
                     {
+                        // Обновляем статус заказа на Paid
+                        var order = await dbContext.Orders.FindAsync(paymentData.OrderId);
+                        if (order != null)
+                        {
+                            order.Status = OrderStatus.Paid;
+                            await dbContext.SaveChangesAsync();
+                        }
+
                         message.IsProcessed = true;
                         message.ProcessedAt = DateTime.UtcNow;
                     }
                     else
                     {
+                        // Обновляем статус заказа на Failed
+                        var order = await dbContext.Orders.FindAsync(paymentData.OrderId);
+                        if (order != null)
+                        {
+                            order.Status = OrderStatus.Failed;
+                            await dbContext.SaveChangesAsync();
+                        }
+
                         message.RetryCount++;
                     }
                 }
@@ -95,4 +111,5 @@ public class ProcessPaymentRequest
 {
     public Guid UserId { get; set; }
     public decimal Amount { get; set; }
+    public Guid OrderId { get; set; }
 } 
