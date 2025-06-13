@@ -1,69 +1,69 @@
 version: '3.8'
 
 services:
-  rabbit:
-    image: rabbitmq:3.13-management
-    ports: ["5672:5672", "15672:15672"]
-    healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  orders-db:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: orders
-      POSTGRES_USER: shop
-      POSTGRES_PASSWORD: shop
-    ports: ["5433:5432"]
-    healthcheck:
-      test: pg_isready -U shop -d orders
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  payments-db:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: payments
-      POSTGRES_USER: shop
-      POSTGRES_PASSWORD: shop
-    ports: ["5434:5432"]
-    healthcheck:
-      test: pg_isready -U shop -d payments
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  orders:
-    build:
-      context: .
-      dockerfile: src/OrderService/Dockerfile
-    depends_on:
-      rabbit:
-        condition: service_healthy
-      orders-db:
-        condition: service_healthy
-    environment:
-      ConnectionStrings__Default: "Host=orders-db;Username=shop;Password=shop;Database=orders"
-      Rabbit__Host: rabbit
-      ASPNETCORE_ENVIRONMENT: Development
-    ports:
-      - "5000:80"
-
-  payments:
+  payments-service:
     build:
       context: .
       dockerfile: src/PaymentsService/Dockerfile
-    depends_on:
-      rabbit:
-        condition: service_healthy
-      payments-db:
-        condition: service_healthy
-    environment:
-      ConnectionStrings__Default: "Host=payments-db;Username=shop;Password=shop;Database=payments"
-      Rabbit__Host: rabbit
-      ASPNETCORE_ENVIRONMENT: Development
     ports:
       - "5001:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__PaymentsDb=Host=payments-db;Database=payments;Username=postgres;Password=postgres
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__UserName=guest
+      - RabbitMQ__Password=guest
+    depends_on:
+      - payments-db
+      - rabbitmq
+
+  order-service:
+    build:
+      context: .
+      dockerfile: src/OrderService/Dockerfile
+    ports:
+      - "5002:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__OrdersDb=Host=orders-db;Database=orders;Username=postgres;Password=postgres
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__UserName=guest
+      - RabbitMQ__Password=guest
+    depends_on:
+      - orders-db
+      - rabbitmq
+
+  payments-db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_DB=payments
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - payments-data:/var/lib/postgresql/data
+
+  orders-db:
+    image: postgres:latest
+    environment:
+      - POSTGRES_DB=orders
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - orders-data:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+
+volumes:
+  payments-data:
+  orders-data:
