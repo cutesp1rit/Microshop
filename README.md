@@ -38,6 +38,12 @@ Microshop - это микросервисная система интернет-
 
 ## Запуск проекта
 
+### Предварительные требования
+
+1. Установите .NET 8.0 SDK с официального сайта: https://dotnet.microsoft.com/download/dotnet/8.0
+2. Установите Docker Desktop: https://www.docker.com/products/docker-desktop
+3. Убедитесь, что Docker Desktop запущен и работает
+
 ### Запуск через Docker Compose
 
 Вот здесь у меня не очень получилось, постоянно выскакивала ошибка "Program does not contain a static 'Main' method suitable for an entry point" так и не понял, как ее решить, зато локально все запускается.
@@ -48,28 +54,46 @@ git clone [url-репозитория]
 cd Microshop
 ```
 
-2. Запустите все сервисы через Docker Compose:
+2. Запустите базы данных и RabbitMQ через Docker Compose:
 ```bash
-docker-compose up --build
+docker compose up -d payments-db orders-db rabbitmq
+```
+
+3. Примените миграции для Order Service:
+```bash
+cd src/OrderService
+dotnet ef database update
+```
+
+4. Примените миграции для Payments Service:
+```bash
+cd ../PaymentsService
+dotnet ef database update
+```
+
+5. Запустите Order Service:
+```bash
+cd ../OrderService
+dotnet run --urls=http://localhost:5002
+```
+
+6. В новом терминале запустите Payments Service:
+```bash
+cd src/PaymentsService
+dotnet run --urls=http://localhost:5001
 ```
 
 После запуска сервисы будут доступны по следующим адресам:
 - Order Service: http://localhost:5002/swagger
 - Payments Service: http://localhost:5001/swagger
 
-### Локальный запуск для разработки
+### Проверка работоспособности
 
-1. Запустите Order Service:
-```bash
-cd src/OrderService
-dotnet run --urls=http://localhost:5002
-```
-
-2. Запустите Payments Service:
-```bash
-cd src/PaymentsService
-dotnet run --urls=http://localhost:5001
-```
+1. Откройте Swagger UI для Payments Service (http://localhost:5001/swagger)
+2. Создайте новый аккаунт через POST /api/accounts
+3. Пополните баланс через POST /api/accounts/{accountId}/topup
+4. Откройте Swagger UI для Order Service (http://localhost:5002/swagger)
+5. Создайте новый заказ через POST /api/orders
 
 ## Тестирование
 
